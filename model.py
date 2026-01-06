@@ -1,10 +1,8 @@
-
 import warnings
 warnings.filterwarnings("ignore")
 
 import numpy as np
 import pandas as pd
-
 from pathlib import Path
 
 from sklearn.model_selection import train_test_split
@@ -13,9 +11,8 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression, SGDClassifier
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (
-    roc_auc_score, f1_score, recall_score,
+    roc_auc_score, f1_score, recall_score, precision_score,
     confusion_matrix, classification_report, RocCurveDisplay
 )
 
@@ -166,13 +163,12 @@ y = df[target_col].copy()
 
 print("X shape:", X.shape, "| y shape:", y.shape)
 
-
 if "FLIGHT_NUMBER" in X.columns:
     X["FLIGHT_NUMBER"] = pd.to_numeric(X["FLIGHT_NUMBER"], errors="coerce")
 
 categorical_features = [
     c for c in [
-        "AIRLINE", "AIRLINE_NAME",
+        "AIRLINE",
         "ORIGIN_AIRPORT", "ORIGIN_STATE",
         "DESTINATION_AIRPORT", "DEST_STATE",
         "sched_dep_period", "sched_arr_period",
@@ -231,23 +227,14 @@ sgd_log = SGDClassifier(
     alpha=1e-5,
     penalty="l2",
     class_weight="balanced",
-    max_iter=30,
+    max_iter=50,
     tol=1e-3,
     random_state=42
 )
 
-# rf = RandomForestClassifier(
-#     n_estimators=300,
-#     random_state=42,
-#     n_jobs=-1,
-#     class_weight="balanced_subsample",
-#     max_depth=None,
-#     min_samples_leaf=1
-# )
-
 models = {
     "LogisticRegression": log_reg,
-    "SGD_LogLoss": sgd_log,
+    "SGD_LogLoss": sgd_log
 }
 
 
@@ -260,7 +247,6 @@ def evaluate_model(name, clf, X_train, y_train, X_test, y_test):
     pipe.fit(X_train, y_train)
 
     y_proba = pipe.predict_proba(X_test)[:, 1]
-    # Using 0.5 threshold or 0.35
     y_pred = (y_proba >= 0.5).astype(int)
 
     auc = roc_auc_score(y_test, y_proba)
@@ -291,10 +277,59 @@ for name, clf in models.items():
 
 print("\n✅ Best model:", best_name, "| Best ROC-AUC:", round(best_auc, 4))
 
+
 RocCurveDisplay.from_estimator(best_pipe, X_test, y_test)
 plt.title(f"ROC Curve - Best model: {best_name}")
-plt.show()
+plt.savefig(OUTPUT_DIR / "roc_curve_best_model.png", dpi=150 , bbox_inches="tight")
+
+print("\n==============================")
+print("🔧 Threshold optimization (maximize F1)")
+print("==============================")
+
+y_proba_best = best_pipe.predict_proba(X_test)[:, 1]
+
+thresholds = np.arange(0.05, 0.96, 0.01)
+rows = []
+
+for t in thresholds:
+    y_pred_t = (y_proba_best >= t).astype(int)
+    prec = precision_score(y_test, y_pred_t, zero_division=0)
+    rec  = recall_score(y_test, y_pred_t)
+    f1   = f1_score(y_test, y_pred_t)
+    rows.append((t, prec, rec, f1))
+
+thr_df = pd.DataFrame(rows, columns=["threshold", "precision", "recall", "f1"])
+best_thr_row = thr_df.loc[thr_df["f1"].idxmax()]
+
+best_threshold = float(best_thr_row["threshold"])
+print("✅ Best threshold:", best_threshold)
+print(best_thr_row)
+
+plt.figure(figsize=(10, 5))
+plt.plot(thr_df["threshold"], thr_df["precision"], label="Precision")
+plt.plot(thr_df["threshold"], thr_df["recall"], label="Recall")
+plt.plot(thr_df["threshold"], thr_df["f1"], label="F1-score")
+plt.axvline(best_threshold, linestyle="--", label=f"Best threshold={best_threshold:.2f}")
+plt.xlabel("Threshold")
+plt.ylabel("Score")
+plt.title("Precision / Recall / F1 vs Threshold")
+plt.legend()
+plt.grid(True)
+plt.savefig(OUTPUT_DIR / "threshold_optimization.png", dpi=150 , bbox_inches="tight")
+
+y_pred_opt = (y_proba_best >= best_threshold).astype(int)
+
+print("\n📊 Metrics @ optimized threshold")
+print("Precision:", precision_score(y_test, y_pred_opt, zero_division=0))
+print("Recall   :", recall_score(y_test, y_pred_opt))
+print("F1-score :", f1_score(y_test, y_pred_opt))
+print("Confusion matrix:\n", confusion_matrix(y_test, y_pred_opt))
+print("\nClassification report:\n", classification_report(y_test, y_pred_opt, digits=4))
 
 model_path = OUTPUT_DIR / "best_model.joblib"
 joblib.dump(best_pipe, model_path)
 print(f"\n💾 Saved best model to: {model_path}")
+
+thr_path = OUTPUT_DIR / "best_threshold.txt"
+thr_path.write_text(str(best_threshold))
+print(f"💾 Saved best threshold to: {thr_path}")
