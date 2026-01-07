@@ -708,7 +708,7 @@ proba_test_cal_A, proba_test_adj_A, pred_A = predict_operational(
 )
 
 print("\n==============================")
-print("Model: CatBoost V7")
+print("Model: CatBoost")
 print("Calibration: Platt")
 print("Prior-shift: VAL → TEST")
 print("==============================")
@@ -724,8 +724,8 @@ print_metrics_block("📌 TEST @ thr = 0.50 (calibrated + prior-shift)", y_test,
 
 # ROC curve uses calibrated (no shift) by default
 RocCurveDisplay.from_predictions(y_test, proba_test_cal_A)
-plt.title("ROC Curve - CatBoost V7 (calibrated)")
-roc_path = OUTPUT_DIR / "roc_curve_catboost_v7.png"
+plt.title("ROC Curve - CatBoost (calibrated)")
+roc_path = OUTPUT_DIR / "roc_curve_catboost_toggle.png"
 plt.savefig(roc_path, dpi=150, bbox_inches="tight")
 plt.close()
 print(f"\n🖼️ Saved ROC curve to: {roc_path}")
@@ -751,7 +751,7 @@ print("Mode:", mode)
 print(f"✅ Best threshold: {best_thr:.6f}")
 print(best_row)
 
-thr_path = OUTPUT_DIR / f"threshold_curve_catboost_v7_prec{int(MIN_PRECISION_VAL*100)}.png"
+thr_path = OUTPUT_DIR / f"threshold_curve_catboost_toggle_prec{int(MIN_PRECISION_VAL*100)}.png"
 save_threshold_curve(
     thr_df,
     best_thr,
@@ -772,7 +772,7 @@ print_metrics_block("📌 TEST @ best_thr (calibrated + prior-shift)", y_test, p
 # --------------------------
 # Save artifacts (single set)
 # --------------------------
-suffix = "v7_ops" if USE_OPERATIONAL_DELAY_COLS else "v7_baseline"
+suffix = "toggle_ops" if USE_OPERATIONAL_DELAY_COLS else "toggle_baseline"
 
 model_path = OUTPUT_DIR / f"catboost_model_{suffix}.cbm"
 cb.save_model(str(model_path))
