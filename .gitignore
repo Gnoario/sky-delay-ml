@@ -1,0 +1,5 @@
+datasets/
+env/
+models/
+catboost_info_v1/
+*.cbm

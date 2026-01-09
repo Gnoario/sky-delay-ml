@@ -415,6 +415,7 @@ def print_metrics_block(title: str, y_true, proba, pred):
     print(f"Recall   : {rec:.4f}")
     print(f"F1       : {f1:.4f}")
     print("Confusion matrix:\n", confusion_matrix(y_true, pred))
+    print("Classification report:\n", classification_report(y_true, pred, digits=4))
     return auc, prec, rec, f1
 
 
